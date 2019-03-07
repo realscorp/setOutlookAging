@@ -1,38 +1,36 @@
-﻿#############################################################
-##  Скрипт рекурсивной установки параметров автоархивации  ##
-##                     папок в Outlook                     ##
-##               Краснов Сергей, 27.09.2017                ##
+#############################################################
+##        Set aging recursively on Outlook folder          ##
+##                     +++++++++++++++                     ##
+##               Sergey Krasnov, 27.09.2017                ##
 #############################################################
 
 cls
 Write-Output "=================================================================="
 
-# Подключаем класс .Net для работы с Outlook
+# Add Outlook .Net class
 try
 {
     Add-Type -assembly "Microsoft.Office.Interop.Outlook"
-
 }
 catch
 {
-    Write-Output "ОШИБКА: Не могу подключить класс Microsoft.Office.Interop.Outlook. Выход из скрипта."
+    Write-Output "ERROR: Cannot add Microsoft.Office.Interop.Outlook assembly. Exit now."
     Exit
 }
 
 
-# Создаем подключение к COM-объекту
+# Create COM-Object connection
 try
 {
     $app = New-Object -ComObject Outlook.Application
-
 }
 catch
 {
-    Write-Output "ОШИБКА: Не могу создать COM-объект Outlook.Application. Выход из скрипта."
+    Write-Output "ERROR: Cannot Create COM-Object connection Outlook.Application. Exit now."
     Exit
 }
 
-# Подключаем пространство имен
+# Add namespace
 try
 {
     $namespace = $app.GetNamespace("MAPI")
@@ -40,13 +38,13 @@ try
 }
 catch
 {
-    Write-Output "ОШИБКА: Не могу подключить пространство имен MAPI. Выход из скрипта."
+    Write-Output "ERROR: Cannot Create MAPI connection. Exit now."
     Exit
 }
 
 
-# Задаем  MAPI свойства, которые хотим менять для папок в Аутлуке
-# Если планируем управлять настройками офисовским шаблоном ADMX через GPO, то нам нужен только $PR_AGING_DEFAULT
+# Set MAPI attributes we want to change in Outlook folders
+# If you are planning GPO script deployment you only need $PR_AGING_DEFAULT
 $PR_AGING_AGE_FOLDER = "http://schemas.microsoft.com/mapi/proptag/0x6857000B"
 $PR_AGING_PERIOD = "http://schemas.microsoft.com/mapi/proptag/0x36EC0003"
 $PR_AGING_GRANULARITY = "http://schemas.microsoft.com/mapi/proptag/0x36EE0003"
@@ -54,23 +52,23 @@ $PR_AGING_DELETE_ITEMS = "http://schemas.microsoft.com/mapi/proptag/0x6855000B"
 $PR_AGING_FILE_NAME_AFTER9 = "http://schemas.microsoft.com/mapi/proptag/0x6859001E"
 $PR_AGING_DEFAULT = "http://schemas.microsoft.com/mapi/proptag/0x685E0003"
 
-# Аттрибут доступности папки, нужен, чтобы не пытаться менять свойства системных папок типа "Общедоступные папки"
+# Accesibility MAPI attribute which is needed cause if we'll try to change public folder setting we'll get an exception
 $PR_ACCESS = "http://schemas.microsoft.com/mapi/proptag/0x0FF40003"
 
-# Задаем константы
-# $Granularity - выбор, в каких единицах задается возраст элементов 
-# 0 - месяцы, 1 - недели, 2 - дни
+# Set aging parameters
+# $Granularity - sets what units is used for aging time
+# 0 - months, 1 - weeks, 2 - days
 #
-# $Period - возраст писем, при превышении которого письма считаются просроченными
-# допустимые значения - 0-999
+# $Period - set aging time period. Elements that old is treated as expired.
+# you can set 0-999
 #
-# $AgeFolder - архивировать ли данную папку
+# $AgeFolder - allow folder aging
 #
-# $DeleteItems - удалять ли просроченные элементы
+# $DeleteItems - allow expired items deletion
 #
-# $Default - использовать ли стандартные настройки
-# 0 - Никакие настройки не используют значения по-умолчанию
-# 1 - только расположение файла архива берется по-умолчанию, стоят галочки 
+# $Default - should we use default settings
+# 0 - None default setting is used
+# 1 - Archive file default location is used only. Flags  are ticked только расположение файла архива берется по-умолчанию, стоят галочки 
 # "Архивировать папку со следующими настройками" и "Перемещать старые элементы в папку по-умолчанию" 
 # 3 - Все настройки установлены берутся по-умолчанию, стоит галочка 
 # "Архивировать элементы папки с настройками по-умолчанию" 
