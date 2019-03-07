@@ -68,53 +68,52 @@ $PR_ACCESS = "http://schemas.microsoft.com/mapi/proptag/0x0FF40003"
 #
 # $Default - should we use default settings
 # 0 - None default setting is used
-# 1 - Archive file default location is used only. Flags  are ticked только расположение файла архива берется по-умолчанию, стоят галочки 
-# "Архивировать папку со следующими настройками" и "Перемещать старые элементы в папку по-умолчанию" 
-# 3 - Все настройки установлены берутся по-умолчанию, стоит галочка 
-# "Архивировать элементы папки с настройками по-умолчанию" 
+# 1 - Archive file default location is used only. Flags are ticked: 
+# "Archive this folder using this settings" and "Move old items to default archive folder" 
+# 3 - Every setting is set to default and flag ticked:
+# "Archive items in this folder using the default settings" 
 $Granularity=2
 $Period=6
 $AgeFolder=$True
 $Default=3
 $DeleteItems=$false
 
-# Проверяем валидность параметров
+# Check if parameters is invalid
 if ($Granularity -lt 0 -or $Granularity -gt 2) 
 {
-    Write-Output "ОШИБКА: Неверный параметр $Granularity. Выход из скрипта."
+    Write-Output "ERROR: Invalid Granularity value: $Granularity. Exit now."
     Exit
 }
 
 if ($Period -lt 1 -or $Period -gt 999)
 {
-    Write-Output "ОШИБКА: Неверный параметр $Period. Выход из скрипта."
+    Write-Output "ERROR: Invalid Period value: $Period. Exit now."
     Exit
 }
 
 if ($Default -lt 0 -or $Default -eq 2 -or $Default -gt 3)
 {
-    Write-Output "ОШИБКА: Неверный параметр $Default. Выход из скрипта."
+    Write-Output "ERROR: Invalid Default value: $Default. Exit now."
     Exit
 }
 
 
-# Функция, которую будем вызывать последовательно на каждую папку
+# Aging function that would be called for every folder
 Function SetAgingOnFolder ($objFolder)
 {
-    # Проверки на допустимость входных параметров функции
+    # Check if input paramaters is invalid
 	if ($objFolder -eq $null)
 	{
 		return $False
-        Write-Output ("ОШИБКА: Неверный объект папки, переданный на вход функции (SetAgingOnFolder), имя папки:" + $objFolder.Name.ToString())
+        Write-Output ("ERROR: Invalid Folder input object passed to (SetAgingOnFolder), folder name:" + $objFolder.Name.ToString())
 	}
 	
 	Try
 	{
-        # Получаем доступ к скрытому элементу папки, в котором хранятся настройки автоархивации
+        # Getting access to folder hidden item thas stores aging settings
 		$oStorage = $objFolder.GetStorage("IPC.MS.Outlook.AgingProperties", 2)
-        # Интерфейс доступа к свойствам элемента
+        # Getting access to item's properties interface
 		$oPA = $oStorage.PropertyAccessor
-		
         
 		If ($AgeFolder -eq $false)
 		{
@@ -122,35 +121,34 @@ Function SetAgingOnFolder ($objFolder)
 		}
 		Else
 		{
-			# Устанавливаем настройки архивации папки, раскомментировать нужные, в нашем случае нужен только Default
+			# Set aging properties. You should uncomment what you want to use. In my case it is $PR_AGING_DEFAULT only
 			#$oPA.SetProperty($PR_AGING_AGE_FOLDER, $True)
 			#$oPA.SetProperty($PR_AGING_GRANULARITY, $Granularity)
 			#$oPA.SetProperty($PR_AGING_DELETE_ITEMS, $DeleteItems)
 			#$oPA.SetProperty($PR_AGING_PERIOD, $Period)
 			$oPA.SetProperty($PR_AGING_DEFAULT, $Default)
-            # В том числе и имя файла, если задано
+            
+	    		# Set Filename property if it's not Null
 			if ($FileName -ne $null)
 			{
 				 #$oPA.SetProperty($PR_AGING_FILE_NAME_AFTER9, $FileName)
 			}
-
 		}
 
-		# Сохраняем изменения в скрытом элементе папки и возвращаем успешное выполнение функции
+		# Save hidden item's changes and return function success
 		$oStorage.Save()
-        Write-Output ("УСПЕХ: Установка аттрибутов автоархивации на папку >>> " + $objFolder.Name.ToString())
+        Write-Output ("SUCCESS: Set aging properties on folder >>> " + $objFolder.Name.ToString())
 	}
 	
-    # Если ошибка, то пишем в консоль и возвращаем неудачное выполнение функции
+    # Catch errors
 	Catch
 	{
-        Write-Output ("ОШИБКА: Что-то пошло не так при установке параметров в функции (SetAgingOnFolder)... " + $objFolder.Name.ToString())
+        Write-Output ("ERROR: Something went wrong in (SetAgingOnFolder) function on folder: " + $objFolder.Name.ToString())
 		Write-Output $_
 	}
 }
 
-# Функция, которая будет проходить по всем подпапкам текущей папки и вызывать для каждой установку
-# параметров автоархивации
+# Function that will go through all the folders recursively and call for SetAgingOnFolder function
 Function RecursiveRoutine ($objParent)
 {
 #    SetAgingOnFolder ($objFolder)
@@ -162,60 +160,60 @@ Function RecursiveRoutine ($objParent)
     }
 }
 
-# Основной код
+# Main
 ###############
-Write-Output "Ищем настроенный профиль..."
+Write-Output "Searching for set up Outlook profile"
 
-# Проверяем, есть ли настроенный профиль Outlook
+# Check if we have Outlook profile set up
 try
 {
     if ($app.DefaultProfileName -eq $null)
     {
-        Write-Output "ОШИБКА: Не настроен профиль по-молчанию. Выход из скрипта."
+        Write-Output "ERROR: We don't have any Outlook profile. Exit now."
         Exit
     }
 }
 catch
 {
-    Write-Output "ОШИБКА: Не могу получить имя профиля по-умолчанию. Выход из скрипта."
+    Write-Output "ERROR: Something went wrong when we searched for Outlook profile. Exit now."
     Exit
 }
 
 
-# Проверяем, есть ли настроенные аккаунты электронной почты в Outlook
+# Check if we have set up Email account in profile
 try
 {
     $accCount = ($app.Explorers.Session.Accounts | Measure-Object).count
     if ($accCount -eq 0)
     {
-        Write-Output "ОШИБКА: Не сконфигурировано ни одного аккаунта электронной почты. Выход из скрипта."
+        Write-Output "ERROR: No Email account configured. Exit now."
         Exit
     }
 }
 catch
 {
-    Write-Output "ОШИБКА: Не могу получить количество настроенных аккаунтов электронной почты. Выход из скрипта."
+    Write-Output "ERROR: Something went wrong when we searched for Email accounts. Exit now."
     Exit
 }
 
-# Получаем список объектов папок
+# Get folder objects list
 try
 {
     $objAllfolders = $namespace.Session.Folders
 }
 catch
 {
-    Write-Output "ОШИБКА: Не могу получить папки аккаунта в Outlook. Выход из скрипта."
+    Write-Output "ERROR: Can't get folder list. Exit now."
     Exit
 }
 
 
-# Каждую корневую папку, кроме "общедоступных папок", пропускаем по рекурсивной функции
+# For every root folder except of Public ones we run recursive routine
 ForEach ($objFolder in $objAllfolders) 
 {
     Write-Output " "
     Write-Output "====================================================="
-    Write-Output ("Заходим в корень папки: " + $objFolder.Name)
+    Write-Output ("Enter folder root: " + $objFolder.Name)
 
     try
     {
@@ -223,7 +221,7 @@ ForEach ($objFolder in $objAllfolders)
     }
     catch
     {
-        Write-Output "ОШИБКА: Не могу получить аттрибут PR_ACCESS, пропускаю папку"
+        Write-Output "ERROR: Can't get PR_ACCESS attribute, skip this folder"
         Continue
     }
 
@@ -233,7 +231,7 @@ ForEach ($objFolder in $objAllfolders)
     }
     else
     {
-        Write-Output "Системная папка, пропускаем..."
+        Write-Output "System folder, skipping..."
         Continue
     }
 }
